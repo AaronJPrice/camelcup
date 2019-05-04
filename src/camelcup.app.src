@@ -1,0 +1,9 @@
+{application, camelcup, [
+  {description, "Calculation engine for CamelCup"},
+  {vsn, "0.1.0"},
+  {mod, {camelcup, []}},
+  {applications, [
+    kernel,
+    stdlib
+  ]}
+]}.
