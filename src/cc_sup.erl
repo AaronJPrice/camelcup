@@ -12,28 +12,30 @@
 %%====================================================================
 %% API functions
 %%====================================================================
-
 start_link() ->
   supervisor:start_link({local, ?SERVER}, ?MODULE, []).
 
 %%====================================================================
 %% Supervisor callbacks
 %%====================================================================
-
-%% Child :: #{id => Id, start => {M, F, A}}
-%% Optional keys are restart, shutdown, type, modules.
-%% Before OTP 18 tuples must be used to specify a child. e.g.
-%% Child :: {Id,StartFunc,Restart,Shutdown,Type,Modules}
 init([]) ->
-  RestartStrategy = one_for_all,
-  MaxRestarts     =  0,
-  RestartPeriod   =  1,
-  SupervisorFlags = {RestartStrategy, MaxRestarts, RestartPeriod},
+  SupervisorFlags = #{strategy=>one_for_all, intensity=>0, period=>1},
 
-  ChildSpecs = [],
+  ApiSpec       = child(cc_api, brutal_kill, worker),
+%%  WorkerSupSpec = child(cc_worker_sup, infinity, supervisor),
+  ChildSpecs    = [ApiSpec],
 
   {ok, {SupervisorFlags, ChildSpecs}}.
 
 %%====================================================================
 %% Internal functions
 %%====================================================================
+child(Module, Shutdown, Type) ->
+  #{
+    id        => Module,
+    start     => {Module, _Fun=start_link, _Args=[]},
+    restart   => permanent, %% Always restart children
+    shutdown  => Shutdown,
+    type      => Type,
+    modules   => [Module]
+  }.
