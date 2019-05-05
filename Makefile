@@ -4,4 +4,4 @@ compile:
 	rebar3 compile
 
 local:
-	erl -pa _build/default/lib/*/ebin/ -s camelcup
+	erl -pa _build/default/lib/*/ebin/ -config config/sys.config -s camelcup
