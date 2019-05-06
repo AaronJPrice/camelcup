@@ -4,7 +4,7 @@
 %% API
 -export([
   start_link/0,
-  new/0,
+  new/1,
   save/0,
   load/1
 ]).
@@ -20,13 +20,8 @@
 ]).
 
 -define(SERVER, ?MODULE).
--define(SAVE_DIR, "./saves/").
--record(state, {
-  blue :: integer(),
-  green :: integer(),
-  orange :: integer(),
-  yellow :: integer(),
-  white :: integer()
+-record(svr_state, {
+  game :: term()
 }).
 
 
@@ -37,9 +32,9 @@
 start_link() ->
   gen_server:start_link({local, ?SERVER}, ?MODULE, _Args=[], _Opts=[]).
 
--spec new() -> ok.
-new() ->
-  gen_server:call(?SERVER, new).
+-spec new(term()) -> ok.
+new(Game) ->
+  gen_server:call(?SERVER, {new, Game}).
 
 -spec save() -> string().
 save() ->
@@ -52,68 +47,46 @@ load(FileName) when is_list(FileName)->
 %%%=====================================================================================================================
 %%% gen_server callbacks
 %%%=====================================================================================================================
--spec init([]) -> {ok, #state{}}.
+-spec init([]) -> {ok, #svr_state{}}.
 init([]) ->
-  {ok, new_state()}.
+  {ok, #svr_state{}}.
 
-
--spec handle_call(term(), {pid(), term()}, #state{}) -> {reply, ok, #state{}}.
-handle_call(new, _From, _State) ->
-  {reply, ok, new_state()};
-handle_call(save, _From, State) ->
-  Reply = save(State),
-  {reply, Reply, State};
+-spec handle_call(term(), {pid(), term()}, #svr_state{}) -> {reply, term(), #svr_state{}}.
+handle_call({new, Game}, _From, State) ->
+  {reply, ok, State#svr_state{game=Game}};
 handle_call({load, FileName}, _From, State) ->
-  case do_load(FileName) of
-    {ok, NewState} -> {reply, ok, NewState};
-    {error, Reason} -> {reply, {error, Reason}, State}
-  end;
+  {Reply, NewState} = do_load(FileName, State),
+  {reply, Reply, NewState};
+handle_call(_, _From, #svr_state{game=undefined}=State) ->
+  {reply, {error, undefined_game_state}, State};
+handle_call(save, _From, State) ->
+  Reply = cc_save:save(State#svr_state.game),
+  {reply, Reply, State};
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
 
--spec handle_cast(term(), #state{}) -> {noreply, #state{}}.
+-spec handle_cast(term(), #svr_state{}) -> {noreply, #svr_state{}}.
 handle_cast(_Request, State) ->
   {noreply, State}.
 
--spec handle_info(term(), #state{}) -> {noreply, #state{}}.
+-spec handle_info(term(), #svr_state{}) -> {noreply, #svr_state{}}.
 handle_info(_Info, State) ->
   {noreply, State}.
 
--spec terminate(term(), #state{}) -> ok.
+-spec terminate(term(), #svr_state{}) -> ok.
 terminate(_Reason, _State) ->
   ok.
 
--spec code_change(term(), #state{}, term()) -> {ok, #state{}}.
+-spec code_change(term(), #svr_state{}, term()) -> {ok, #svr_state{}}.
 code_change(_OldVsn, State, _Extra) ->
   {ok, State}.
+
 
 %%%=====================================================================================================================
 %%% Internal functions
 %%%=====================================================================================================================
-new_state() ->
-  #state{}.
-
-save(State) ->
-  case file:make_dir(?SAVE_DIR) of
-    ok              -> ok;
-    {error, eexist} -> ok
-  end,
-  {{Y, Mo, D}, {H, Mi, S}} = calendar:local_time(),
-  DateTimeString = io_lib:format("~p-~p-~p-~p-~p-~p", [Y, Mo, D, H, Mi, S]),
-  FilePath = ?SAVE_DIR ++"cc_save_" ++DateTimeString,
-  SaveData = io_lib:format("~p.", [State]),
-  {ok, File} = file:open(FilePath, [write]),
-  ok = file:write(File, SaveData),
-  ok = file:close(File),
-  FilePath.
-
-do_load(FileName) ->
-  FilePath = ?SAVE_DIR ++ FileName,
-  case file:consult(FilePath) of
-    {ok, [NewState]} when is_record(NewState, state) ->
-      lager:info("Loaded save data: ~p", [NewState]),
-      {ok, NewState};
-    {error, Reason} ->
-      lager:info("Failed to load data from ~p due to ~p", [FilePath, Reason]),
-      {error, Reason}
+do_load(FileName, State) ->
+  case cc_save:load(FileName) of
+    {ok, NewGameState}  -> {ok, State#svr_state{game =NewGameState}};
+    Error               -> {Error, State}
   end.

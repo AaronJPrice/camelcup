@@ -1,0 +1,2 @@
+-define(SAVE_DIR,         "./saves/").
+-define(SAVE_FILE_PREFIX, "cc_save_").
