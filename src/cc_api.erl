@@ -4,6 +4,7 @@
 %% API
 -export([
   start_link/0,
+  new/0,
   new/1,
   save/0,
   load/1
@@ -20,10 +21,6 @@
 ]).
 
 -define(SERVER, ?MODULE).
--record(svr_state, {
-  game :: term()
-}).
-
 
 %%%=====================================================================================================================
 %%% API
@@ -32,9 +29,13 @@
 start_link() ->
   gen_server:start_link({local, ?SERVER}, ?MODULE, _Args=[], _Opts=[]).
 
--spec new(term()) -> ok.
-new(Game) ->
-  gen_server:call(?SERVER, {new, Game}).
+-spec new() -> ok | {error, term()}.
+new() ->
+  new(undefined).
+
+-spec new(undefined | cc_game:board()) -> ok | {error, term()}.
+new(Board) ->
+  gen_server:call(?SERVER, {new, Board}).
 
 -spec save() -> string().
 save() ->
@@ -47,37 +48,41 @@ load(FileName) when is_list(FileName)->
 %%%=====================================================================================================================
 %%% gen_server callbacks
 %%%=====================================================================================================================
--spec init([]) -> {ok, #svr_state{}}.
+-spec init([]) -> {ok, cc_game:game()}.
 init([]) ->
-  {ok, #svr_state{}}.
+  {ok, State} = cc_game:new_game(undefined),
+  {ok, State}.
 
--spec handle_call(term(), {pid(), term()}, #svr_state{}) -> {reply, term(), #svr_state{}}.
-handle_call({new, Game}, _From, State) ->
-  {reply, ok, State#svr_state{game=Game}};
+-spec handle_call(term(), {pid(), term()}, cc_game:game()) -> {reply, term(), cc_game:game()}.
+handle_call({new, Board}, _From, State) ->
+  case cc_game:new_game(Board) of
+    {ok, NewState}  -> {reply, ok, NewState};
+    Error           -> {reply, Error, State}
+  end;
 handle_call({load, FileName}, _From, State) ->
-  {Reply, NewState} = do_load(FileName, State),
-  {reply, Reply, NewState};
-handle_call(_, _From, #svr_state{game=undefined}=State) ->
-  {reply, {error, undefined_game_state}, State};
+  case cc_game:load(FileName) of
+    {ok, NewState}  -> {reply, ok, NewState};
+    Error           -> {reply, Error, State}
+  end;
 handle_call(save, _From, State) ->
-  Reply = cc_save:save(State#svr_state.game),
+  Reply = cc_game:save(State),
   {reply, Reply, State};
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
 
--spec handle_cast(term(), #svr_state{}) -> {noreply, #svr_state{}}.
+-spec handle_cast(term(), cc_game:game()) -> {noreply, cc_game:game()}.
 handle_cast(_Request, State) ->
   {noreply, State}.
 
--spec handle_info(term(), #svr_state{}) -> {noreply, #svr_state{}}.
+-spec handle_info(term(), cc_game:game()) -> {noreply, cc_game:game()}.
 handle_info(_Info, State) ->
   {noreply, State}.
 
--spec terminate(term(), #svr_state{}) -> ok.
+-spec terminate(term(), cc_game:game()) -> ok.
 terminate(_Reason, _State) ->
   ok.
 
--spec code_change(term(), #svr_state{}, term()) -> {ok, #svr_state{}}.
+-spec code_change(term(), cc_game:game(), term()) -> {ok, cc_game:game()}.
 code_change(_OldVsn, State, _Extra) ->
   {ok, State}.
 
@@ -85,8 +90,3 @@ code_change(_OldVsn, State, _Extra) ->
 %%%=====================================================================================================================
 %%% Internal functions
 %%%=====================================================================================================================
-do_load(FileName, State) ->
-  case cc_save:load(FileName) of
-    {ok, NewGameState}  -> {ok, State#svr_state{game =NewGameState}};
-    Error               -> {Error, State}
-  end.
