@@ -19,7 +19,7 @@ start_link() ->
 %% Supervisor callbacks
 %%====================================================================
 init([]) ->
-  SupervisorFlags = #{strategy=>one_for_all, intensity=>0, period=>1},
+  SupervisorFlags = #{strategy=>one_for_all, intensity=>1, period=>2},
 
   ApiSpec       = child(cc_api, brutal_kill, worker),
 %%  WorkerSupSpec = child(cc_worker_sup, infinity, supervisor),
